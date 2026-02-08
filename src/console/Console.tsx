@@ -1,4 +1,5 @@
 import { useBattery } from '@uidotdev/usehooks';
+import { useEffect } from 'react';
 import { useSnapshot } from 'valtio';
 
 import battery from '/battery.svg';
@@ -16,7 +17,7 @@ import profile2 from '/profile2.jpeg';
 import profile3 from '/profile3.jpeg';
 import wifi from '/wifi.svg';
 
-import state, { tiles } from '../state';
+import state, { scanGames, defaultGames, launchGame } from '../state-tauri';
 import Carousel from './components/Carousel';
 import useDimensions from './useDimensions';
 import useLiveTime from './useLiveTime';
@@ -34,6 +35,27 @@ function Console() {
 	const { level } = useBattery();
 	const batteryText = level ? Math.round(level * 100) : 88;
 	const time = useLiveTime();
+
+	// Load games on mount
+	useEffect(() => {
+		// Try to scan for games, fallback to default games if none found
+		scanGames().then(() => {
+			if (snap.games.length === 0) {
+				state.games = defaultGames;
+			}
+		});
+	}, []);
+
+	// Get the current list of games (or default ones)
+	const games = snap.games.length > 0 ? snap.games : defaultGames;
+	const currentGame = snap.selectedTitle !== null ? games[snap.selectedTitle] : null;
+
+	// Handle game launch when 'A' button is pressed or clicked
+	const handleLaunchGame = () => {
+		if (currentGame && currentGame.path) {
+			launchGame(currentGame);
+		}
+	};
 
 	return (
 		<div className="h-screen w-screen overflow-hidden">
@@ -79,7 +101,7 @@ function Console() {
 				{/* Game Title */}
 				<div className="ml-[6em] mt-[4em] text-[#2DB4EA]">
 					{/* Place image here */}
-					<div className="h-[1.5em] text-[2.7em]">{snap.selectedTitle !== null ? tiles[snap.selectedTitle].title : ''}</div>
+					<div className="h-[1.5em] text-[2.7em]">{currentGame?.title || ''}</div>
 				</div>
 
 				{/* Carousel */}
@@ -99,8 +121,8 @@ function Console() {
 
 				{/* Controls */}
 				<div className="float-right mr-[6em] mt-[2em] flex items-center justify-center gap-[1.2em]">
-					<img src={aButton} className="size-[2.2em]" />
-					<p className="text-[1.9em] text-white">Continue</p>
+					<img src={aButton} className="size-[2.2em] cursor-pointer" onClick={handleLaunchGame} />
+					<p className="text-[1.9em] text-white cursor-pointer" onClick={handleLaunchGame}>Continue</p>
 					<img src={plusButton} className="ml-[1.2em] size-[2.2em]" />
 					<p className=" text-[1.9em] text-white">Start</p>
 				</div>
