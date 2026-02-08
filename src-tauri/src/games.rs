@@ -284,3 +284,52 @@ pub fn launch_game(game: &Game) -> Result<(), String> {
         Err(e) => Err(format!("Failed to launch game: {}", e)),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_title_id_from_filename() {
+        let scanner = GameScanner::new();
+        
+        // Test with brackets
+        let path1 = Path::new("/games/[0100000000010000] Super Mario Odyssey.nsp");
+        let icon1 = scanner.extract_title_id_and_fetch_icon(path1);
+        assert!(icon1.is_some());
+        assert_eq!(icon1.unwrap(), "https://tinfoil.media/ti/0100000000010000/512/512");
+        
+        // Test without brackets
+        let path2 = Path::new("/games/01007EF00011E000 - Zelda BOTW.xci");
+        let icon2 = scanner.extract_title_id_and_fetch_icon(path2);
+        assert!(icon2.is_some());
+        assert_eq!(icon2.unwrap(), "https://tinfoil.media/ti/01007EF00011E000/512/512");
+        
+        // Test with no title ID
+        let path3 = Path::new("/games/Some Game Without ID.nsp");
+        let icon3 = scanner.extract_title_id_and_fetch_icon(path3);
+        assert!(icon3.is_none());
+    }
+
+    #[test]
+    fn test_default_icon() {
+        let scanner = GameScanner::new();
+        let icon = scanner.get_default_icon();
+        assert!(icon.is_some());
+        assert!(icon.unwrap().contains("placeholder"));
+    }
+
+    #[test]
+    fn test_game_creation() {
+        let game = Game {
+            id: "test123".to_string(),
+            title: "Test Game".to_string(),
+            path: "/test/game.nsp".to_string(),
+            icon: Some("https://example.com/icon.png".to_string()),
+            emulator: "ryujinx".to_string(),
+        };
+        
+        assert_eq!(game.title, "Test Game");
+        assert_eq!(game.emulator, "ryujinx");
+    }
+}
