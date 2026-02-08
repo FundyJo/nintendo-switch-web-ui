@@ -36,6 +36,7 @@ impl GameScanner {
                 home_dir.join("Games/Switch"),
                 home_dir.join("Games/Yuzu"),
                 home_dir.join("Downloads/Switch"),
+                home_dir.join("Downloads"), // Scan Downloads folder for games
             ];
 
             for yuzu_path in yuzu_paths {

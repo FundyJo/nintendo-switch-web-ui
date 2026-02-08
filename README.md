@@ -97,6 +97,12 @@ The app automatically scans these directories:
   - Linux: `~/.local/share/yuzu/load`
   - macOS: `~/Library/Application Support/yuzu/load`
   - Windows: `%APPDATA%/Roaming/yuzu/load`
+- **Additional directories scanned** (up to 3 levels deep):
+  - `~/Documents/Yuzu/games`
+  - `~/Games/Switch`
+  - `~/Games/Yuzu`
+  - `~/Downloads/Switch`
+  - `~/Downloads` (for games stored directly in Downloads folder)
 
 Place your `.nsp`, `.xci`, `.nca`, or `.nro` game files in these directories for automatic detection.
 
