@@ -39,12 +39,18 @@ const removeExcessiveScroll = (emblaApi: EmblaCarouselType) => {
 // TODO: Allow moving to edge first, before starting scrolling
 const keyboardControl = (emblaApi: EmblaCarouselType) => {
 	const handleKeyDown = (event: KeyboardEvent) => {
-		if (event.key === 'ArrowLeft' && emblaApi.canScrollPrev()) {
-			state.selectedTitle = state.selectedTitle !== null ? state.selectedTitle - 1 : null;
-			emblaApi.scrollPrev();
-		} else if (event.key === 'ArrowRight' && emblaApi.canScrollNext()) {
-			state.selectedTitle = state.selectedTitle !== null ? state.selectedTitle + 1 : null;
-			emblaApi.scrollNext();
+		if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+			const games = state.games.length > 0 ? state.games : defaultGames;
+			const maxIndex = Math.max(games.length - 1, 0);
+			const currentIndex = state.selectedTitle !== null ? state.selectedTitle : emblaApi.selectedScrollSnap();
+			const nextIndex = event.key === 'ArrowLeft'
+				? Math.max(currentIndex - 1, 0)
+				: Math.min(currentIndex + 1, maxIndex);
+
+			if (nextIndex !== currentIndex) {
+				state.selectedTitle = nextIndex;
+				emblaApi.scrollTo(nextIndex);
+			}
 		} else if (event.key === 'Enter' || event.key === ' ') {
 			// Launch game on Enter or Space
 			if (state.selectedTitle !== null) {
@@ -67,7 +73,7 @@ export function Carousel() {
 	const customAlign = (viewSize: number, snapSize: number) => viewSize - snapSize;
 
 	// Setup Embla
-	const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, skipSnaps: true, align: customAlign }, [WheelGesturesPlugin({ target: document.body, forceWheelAxis: 'y' })]);
+	const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, skipSnaps: true, align: customAlign, containScroll: 'keepSnaps' }, [WheelGesturesPlugin({ target: document.body, forceWheelAxis: 'y' })]);
 
 	useEffect(() => {
 		if (emblaApi) {
