@@ -1,14 +1,14 @@
+use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
-use base64::{Engine as _, engine::general_purpose};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Game {
     pub id: String,
     pub title: String,
-    pub path: String, // Changed to String for serialization
+    pub path: String,         // Changed to String for serialization
     pub icon: Option<String>, // Base64 encoded icon or URL
     pub emulator: String,
 }
@@ -20,9 +20,7 @@ pub struct GameScanner {
 
 impl GameScanner {
     pub fn new() -> Self {
-        GameScanner {
-            games: Vec::new(),
-        }
+        GameScanner { games: Vec::new() }
     }
 
     /// Scan for Yuzu games
@@ -63,7 +61,7 @@ impl GameScanner {
             for config_dir in &ryujinx_config_dirs {
                 if config_dir.exists() {
                     let _ = self.scan_ryujinx_database(&config_dir);
-                    
+
                     // Also scan common game directories
                     let games_dir = config_dir.join("games");
                     if games_dir.exists() {
@@ -93,7 +91,7 @@ impl GameScanner {
         // The games.json or title.json file may contain game information
         let games_json = config_dir.join("games.json");
         let cache_dir = config_dir.join("bis/user/save/0000000000000000/0000000000000000/cache");
-        
+
         // Try to find icon cache in Ryujinx's cache directory
         if cache_dir.exists() {
             for entry in WalkDir::new(&cache_dir)
@@ -109,9 +107,12 @@ impl GameScanner {
                             if let Some(title_id) = parent.file_name() {
                                 let title_id_str = title_id.to_string_lossy().to_string();
                                 // Only process if it looks like a title ID (16 hex chars)
-                                if title_id_str.len() == 16 && title_id_str.chars().all(|c| c.is_ascii_hexdigit()) {
+                                if title_id_str.len() == 16
+                                    && title_id_str.chars().all(|c| c.is_ascii_hexdigit())
+                                {
                                     if let Ok(icon_data) = fs::read(entry.path()) {
-                                        let icon_base64 = general_purpose::STANDARD.encode(&icon_data);
+                                        let icon_base64 =
+                                            general_purpose::STANDARD.encode(&icon_data);
                                         // Try to find the corresponding game file
                                         // For now, we'll just note that we found an icon for this title ID
                                         log::info!("Found icon for title ID: {}", title_id_str);
@@ -131,7 +132,7 @@ impl GameScanner {
     fn scan_directory(&mut self, path: &Path, emulator: &str) -> Result<(), String> {
         // Look for .nsp, .xci, .nca, .nro files
         let game_extensions = vec!["nsp", "xci", "nca", "nro"];
-        
+
         for entry in WalkDir::new(path)
             .max_depth(3)
             .into_iter()
@@ -143,12 +144,13 @@ impl GameScanner {
                     if let Some(file_name) = path.file_stem() {
                         let title = file_name.to_string_lossy().to_string();
                         let id = format!("{:x}", md5::compute(path.to_string_lossy().as_bytes()));
-                        
+
                         // Try multiple icon strategies
-                        let icon = self.find_game_icon(path)
+                        let icon = self
+                            .find_game_icon(path)
                             .or_else(|| self.extract_title_id_and_fetch_icon(path))
                             .or_else(|| self.get_default_icon());
-                        
+
                         self.games.push(Game {
                             id,
                             title,
@@ -174,7 +176,10 @@ impl GameScanner {
                 if word.len() == 16 && word.chars().all(|c| c.is_ascii_hexdigit()) {
                     // Found a potential title ID
                     // Return URL to tinfoil.media icon
-                    return Some(format!("https://tinfoil.media/ti/{}/512/512", word.to_uppercase()));
+                    return Some(format!(
+                        "https://tinfoil.media/ti/{}/512/512",
+                        word.to_uppercase()
+                    ));
                 }
             }
         }
@@ -189,20 +194,35 @@ impl GameScanner {
     /// Try to find an icon for the game
     fn find_game_icon(&self, game_path: &Path) -> Option<String> {
         // First, look for common icon file names near the game file
-        let icon_names = vec!["icon.jpg", "icon.png", "cover.jpg", "cover.png", "boxart.jpg", "boxart.png"];
-        
+        let icon_names = vec![
+            "icon.jpg",
+            "icon.png",
+            "cover.jpg",
+            "cover.png",
+            "boxart.jpg",
+            "boxart.png",
+        ];
+
         if let Some(parent) = game_path.parent() {
             for icon_name in icon_names {
                 let icon_path = parent.join(icon_name);
                 if icon_path.exists() {
                     if let Ok(data) = fs::read(&icon_path) {
                         // Return as base64 data URL
-                        let mime_type = if icon_name.ends_with(".png") { "image/png" } else { "image/jpeg" };
-                        return Some(format!("data:{};base64,{}", mime_type, general_purpose::STANDARD.encode(&data)));
+                        let mime_type = if icon_name.ends_with(".png") {
+                            "image/png"
+                        } else {
+                            "image/jpeg"
+                        };
+                        return Some(format!(
+                            "data:{};base64,{}",
+                            mime_type,
+                            general_purpose::STANDARD.encode(&data)
+                        ));
                     }
                 }
             }
-            
+
             // Also check if there's a folder with the same name as the game containing icons
             if let Some(game_stem) = game_path.file_stem() {
                 let game_folder = parent.join(game_stem);
@@ -211,15 +231,23 @@ impl GameScanner {
                         let icon_path = game_folder.join(icon_name);
                         if icon_path.exists() {
                             if let Ok(data) = fs::read(&icon_path) {
-                                let mime_type = if icon_name.ends_with(".png") { "image/png" } else { "image/jpeg" };
-                                return Some(format!("data:{};base64,{}", mime_type, general_purpose::STANDARD.encode(&data)));
+                                let mime_type = if icon_name.ends_with(".png") {
+                                    "image/png"
+                                } else {
+                                    "image/jpeg"
+                                };
+                                return Some(format!(
+                                    "data:{};base64,{}",
+                                    mime_type,
+                                    general_purpose::STANDARD.encode(&data)
+                                ));
                             }
                         }
                     }
                 }
             }
         }
-        
+
         None
     }
 
@@ -229,13 +257,19 @@ impl GameScanner {
     }
 
     /// Add a game manually
-    pub fn add_game(&mut self, title: String, path: PathBuf, emulator: String) -> Result<Game, String> {
+    pub fn add_game(
+        &mut self,
+        title: String,
+        path: PathBuf,
+        emulator: String,
+    ) -> Result<Game, String> {
         if !path.exists() {
             return Err("Game file does not exist".to_string());
         }
 
         let id = format!("{:x}", md5::compute(path.to_string_lossy().as_bytes()));
-        let icon = self.find_game_icon(&path)
+        let icon = self
+            .find_game_icon(&path)
             .or_else(|| self.extract_title_id_and_fetch_icon(&path))
             .or_else(|| self.get_default_icon());
 
@@ -280,9 +314,7 @@ pub fn launch_game(game: &Game) -> Result<(), String> {
         _ => return Err("Unknown emulator".to_string()),
     };
 
-    let result = Command::new(emulator_cmd)
-        .arg(&game.path)
-        .spawn();
+    let result = Command::new(emulator_cmd).arg(&game.path).spawn();
 
     match result {
         Ok(_) => Ok(()),
@@ -297,19 +329,25 @@ mod tests {
     #[test]
     fn test_extract_title_id_from_filename() {
         let scanner = GameScanner::new();
-        
+
         // Test with brackets
         let path1 = Path::new("/games/[0100000000010000] Super Mario Odyssey.nsp");
         let icon1 = scanner.extract_title_id_and_fetch_icon(path1);
         assert!(icon1.is_some());
-        assert_eq!(icon1.unwrap(), "https://tinfoil.media/ti/0100000000010000/512/512");
-        
+        assert_eq!(
+            icon1.unwrap(),
+            "https://tinfoil.media/ti/0100000000010000/512/512"
+        );
+
         // Test without brackets
         let path2 = Path::new("/games/01007EF00011E000 - Zelda BOTW.xci");
         let icon2 = scanner.extract_title_id_and_fetch_icon(path2);
         assert!(icon2.is_some());
-        assert_eq!(icon2.unwrap(), "https://tinfoil.media/ti/01007EF00011E000/512/512");
-        
+        assert_eq!(
+            icon2.unwrap(),
+            "https://tinfoil.media/ti/01007EF00011E000/512/512"
+        );
+
         // Test with no title ID
         let path3 = Path::new("/games/Some Game Without ID.nsp");
         let icon3 = scanner.extract_title_id_and_fetch_icon(path3);
@@ -333,7 +371,7 @@ mod tests {
             icon: Some("https://example.com/icon.png".to_string()),
             emulator: "ryujinx".to_string(),
         };
-        
+
         assert_eq!(game.title, "Test Game");
         assert_eq!(game.emulator, "ryujinx");
     }

@@ -4,7 +4,7 @@ import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
 import { useEffect } from 'react';
 import { useSnapshot } from 'valtio';
 
-import state, { defaultGames, launchGame } from '../../state-tauri';
+import state, { launchGame } from '../../state-tauri';
 
 const removeExcessiveScroll = (emblaApi: EmblaCarouselType) => {
 	emblaApi.on('scroll', (emblaApi) => {
@@ -40,7 +40,7 @@ const removeExcessiveScroll = (emblaApi: EmblaCarouselType) => {
 const keyboardControl = (emblaApi: EmblaCarouselType) => {
 	const handleKeyDown = (event: KeyboardEvent) => {
 		if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-			const games = state.games.length > 0 ? state.games : defaultGames;
+			const games = state.games;
 			const maxIndex = Math.max(games.length - 1, 0);
 			const currentIndex = state.selectedTitle !== null ? state.selectedTitle : emblaApi.selectedScrollSnap();
 			const nextIndex = event.key === 'ArrowLeft'
@@ -54,7 +54,7 @@ const keyboardControl = (emblaApi: EmblaCarouselType) => {
 		} else if (event.key === 'Enter' || event.key === ' ') {
 			// Launch game on Enter or Space
 			if (state.selectedTitle !== null) {
-				const games = state.games.length > 0 ? state.games : defaultGames;
+				const games = state.games;
 				const game = games[state.selectedTitle];
 				if (game && game.path) {
 					launchGame(game);
@@ -87,8 +87,8 @@ export function Carousel() {
 		state.selectedTitle = index;
 	};
 
-	// Get the current list of games (or default ones)
-	const games = snap.games.length > 0 ? snap.games : defaultGames;
+	// Get the current list of games (only scanned games)
+	const games = snap.games;
 
 	return (
 		// <div className="mt-[-0.2em] h-[27em] overflow-hidden px-[10em]" ref={emblaRef}>
