@@ -12,6 +12,9 @@ struct AppState {
 fn scan_games(state: State<AppState>) -> Result<Vec<Game>, String> {
     let mut scanner = state.scanner.lock().map_err(|e| e.to_string())?;
 
+    // Reset before scanning to avoid duplicates across scans
+    scanner.reset();
+
     // Scan both emulators
     scanner.scan_yuzu()?;
     scanner.scan_ryujinx()?;

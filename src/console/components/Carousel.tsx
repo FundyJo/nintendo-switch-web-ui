@@ -110,7 +110,7 @@ export function Carousel() {
 						<div
 							onClick={() => tileClicked(index)}
 							className="relative aspect-square h-[24em] shrink-0 overflow-visible bg-[#151515]"
-							key={game.id}
+							key={`${game.id}-${game.path}`}
 						>
 							{/* Tile image */}
 							<img src={imageUrl} alt={game.title} className="w-full h-full object-cover" />

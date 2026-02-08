@@ -1,5 +1,6 @@
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -16,27 +17,58 @@ pub struct Game {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GameScanner {
     pub games: Vec<Game>,
+    seen_paths: HashSet<String>,
 }
 
 impl GameScanner {
     pub fn new() -> Self {
-        GameScanner { games: Vec::new() }
+        GameScanner {
+            games: Vec::new(),
+            seen_paths: HashSet::new(),
+        }
+    }
+
+    /// Reset the scanner state before a new scan
+    pub fn reset(&mut self) {
+        self.games.clear();
+        self.seen_paths.clear();
     }
 
     /// Scan for Yuzu games
     pub fn scan_yuzu(&mut self) -> Result<(), String> {
         if let Some(home_dir) = dirs::home_dir() {
             // Typical Yuzu game directory locations
-            let yuzu_paths = vec![
+            let mut yuzu_paths = vec![
                 home_dir.join(".local/share/yuzu/load"),
                 home_dir.join("AppData/Roaming/yuzu/load"),
+                home_dir.join("AppData/Roaming/yuzu/nand/user/Contents/registered"),
                 home_dir.join("Library/Application Support/yuzu/load"),
                 // Additional common game storage locations
                 home_dir.join("Documents/Yuzu/games"),
                 home_dir.join("Games/Switch"),
                 home_dir.join("Games/Yuzu"),
+                home_dir.join("Downloads"),
                 home_dir.join("Downloads/Switch"),
             ];
+
+            // Add custom game directories from Yuzu config (including portable installs)
+            let config_paths = self.find_yuzu_config_paths(&home_dir);
+            for config_path in config_paths {
+                let config_dirs = self.read_yuzu_game_dirs_from_config(&config_path);
+                yuzu_paths.extend(config_dirs);
+
+                // For portable installs, derive the user directory from config path
+                if let Some(config_dir) = config_path.parent() {
+                    if let Some(user_dir) = config_dir.parent() {
+                        yuzu_paths.push(user_dir.join("load"));
+                        yuzu_paths.push(user_dir.join("nand/user/Contents/registered"));
+                    }
+                }
+            }
+
+            // Remove duplicates
+            yuzu_paths.sort();
+            yuzu_paths.dedup();
 
             for yuzu_path in yuzu_paths {
                 if yuzu_path.exists() {
@@ -45,6 +77,80 @@ impl GameScanner {
             }
         }
         Ok(())
+    }
+
+    /// Find possible Yuzu config paths (standard + portable installs)
+    fn find_yuzu_config_paths(&self, home_dir: &Path) -> Vec<PathBuf> {
+        let mut config_paths = vec![
+            home_dir.join("AppData/Roaming/yuzu/qt-config.ini"),
+            home_dir.join(".local/share/yuzu/qt-config.ini"),
+            home_dir.join("Library/Application Support/yuzu/qt-config.ini"),
+        ];
+
+        // Try to discover portable installs in Downloads (limited depth)
+        let downloads_dir = home_dir.join("Downloads");
+        if downloads_dir.exists() {
+            for entry in WalkDir::new(downloads_dir)
+                .max_depth(6)
+                .into_iter()
+                .filter_map(|e| e.ok())
+            {
+                if entry.file_type().is_file() {
+                    if let Some(name) = entry.file_name().to_str() {
+                        if name.eq_ignore_ascii_case("qt-config.ini") {
+                            let path = entry.path();
+                            if path.to_string_lossy().to_ascii_lowercase().contains("yuzu") {
+                                config_paths.push(path.to_path_buf());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        config_paths
+    }
+
+    /// Parse Yuzu qt-config.ini for custom game directories
+    fn read_yuzu_game_dirs_from_config(&self, config_path: &Path) -> Vec<PathBuf> {
+        let mut dirs = Vec::new();
+        let Ok(contents) = fs::read_to_string(config_path) else {
+            return dirs;
+        };
+
+        for line in contents.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') || line.starts_with('[') {
+                continue;
+            }
+
+            let Some((key, value)) = line.split_once('=') else {
+                continue;
+            };
+
+            let key_l = key.trim().to_ascii_lowercase();
+            let mut value = value.trim().trim_matches('"').to_string();
+            if value.is_empty() {
+                continue;
+            }
+
+            // Accept entries that look like Yuzu game directory keys
+            let looks_like_game_dir_key =
+                (key_l.contains("gamedir") || key_l.contains("gamedirs") || key_l.contains("game_directory"))
+                    && (key_l.contains("path") || key_l.ends_with("gamedir") || key_l.ends_with("gamedirs"));
+
+            if looks_like_game_dir_key {
+                // Normalize common path formats
+                if value.starts_with("@ByteArray(") {
+                    // Ignore bytearray entries
+                    continue;
+                }
+                // QSettings may escape backslashes, keep as-is; PathBuf handles it
+                dirs.push(PathBuf::from(value));
+            }
+        }
+
+        dirs
     }
 
     /// Scan for Ryujinx games
@@ -142,8 +248,14 @@ impl GameScanner {
             if let Some(ext) = path.extension() {
                 if game_extensions.contains(&ext.to_str().unwrap_or("")) {
                     if let Some(file_name) = path.file_stem() {
+                        let path_str = path.to_string_lossy().to_string();
+                        if self.seen_paths.contains(&path_str) {
+                            continue;
+                        }
+                        self.seen_paths.insert(path_str.clone());
+
                         let title = file_name.to_string_lossy().to_string();
-                        let id = format!("{:x}", md5::compute(path.to_string_lossy().as_bytes()));
+                        let id = format!("{:x}", md5::compute(path_str.as_bytes()));
 
                         // Try multiple icon strategies
                         let icon = self
@@ -154,7 +266,7 @@ impl GameScanner {
                         self.games.push(Game {
                             id,
                             title,
-                            path: path.to_string_lossy().to_string(),
+                            path: path_str,
                             icon,
                             emulator: emulator.to_string(),
                         });
