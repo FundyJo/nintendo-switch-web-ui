@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 function format12HourTime(date: Date): string {
 	let hours: number = date.getHours();
 	const minutes: number = date.getMinutes();
-	const ampm: string = hours >= 12 ? 'PM' : 'AM';
 
 	hours = hours % 12;
 	hours = hours ? hours : 12; // the hour '0' should be '12'
