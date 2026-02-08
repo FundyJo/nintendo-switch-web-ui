@@ -4,5 +4,10 @@ import { defineConfig } from 'vite';
 // https://vitejs.dev/config/
 export default defineConfig({
 	plugins: [react()],
-	base: '/nintendo-switch-web-ui/',
+	clearScreen: false,
+	server: {
+		port: 5173,
+		strictPort: true,
+	},
+	envPrefix: ['VITE_', 'TAURI_'],
 });

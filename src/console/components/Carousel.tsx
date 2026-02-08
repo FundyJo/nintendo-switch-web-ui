@@ -4,7 +4,7 @@ import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
 import { useEffect } from 'react';
 import { useSnapshot } from 'valtio';
 
-import state, { tiles } from '../../state';
+import state, { defaultGames, launchGame } from '../../state-tauri';
 
 const removeExcessiveScroll = (emblaApi: EmblaCarouselType) => {
 	emblaApi.on('scroll', (emblaApi) => {
@@ -45,6 +45,15 @@ const keyboardControl = (emblaApi: EmblaCarouselType) => {
 		} else if (event.key === 'ArrowRight' && emblaApi.canScrollNext()) {
 			state.selectedTitle = state.selectedTitle !== null ? state.selectedTitle + 1 : null;
 			emblaApi.scrollNext();
+		} else if (event.key === 'Enter' || event.key === ' ') {
+			// Launch game on Enter or Space
+			if (state.selectedTitle !== null) {
+				const games = state.games.length > 0 ? state.games : defaultGames;
+				const game = games[state.selectedTitle];
+				if (game && game.path) {
+					launchGame(game);
+				}
+			}
 		}
 	};
 	document.addEventListener('keydown', handleKeyDown);
@@ -72,24 +81,38 @@ export function Carousel() {
 		state.selectedTitle = index;
 	};
 
+	// Get the current list of games (or default ones)
+	const games = snap.games.length > 0 ? snap.games : defaultGames;
+
 	return (
 		// <div className="mt-[-0.2em] h-[27em] overflow-hidden px-[10em]" ref={emblaRef}>
 		<div className=" left-0 z-10 mt-[-0.2em] h-[27em] w-screen px-[10em] " ref={emblaRef}>
 			<div className="flex size-full items-center gap-[1.3em]">
-				{tiles.map((tile, index) => (
-					<div
-						onClick={() => tileClicked(index)}
-						className="relative aspect-square h-[24em] shrink-0 overflow-visible bg-[#151515]"
-						key={tile.img}
-					>
-						{/* Tile image */}
-						<img src={tile.img} alt="" />
-						{/* Selected tile border */}
-						{snap.selectedTitle === index && (
-							<div className="animate-borderColor pointer-events-none absolute inset-[-.95em] rounded-[.2em] border-[.5em]"></div>
-						)}
-					</div>
-				))}
+				{games.map((game, index) => {
+					// Use the game's icon if available, otherwise use a placeholder
+					const imageUrl = game.icon?.startsWith('data:') 
+						? game.icon 
+						: game.icon?.startsWith('http') 
+						? game.icon 
+						: game.icon 
+						? `data:image/png;base64,${game.icon}`
+						: 'https://via.placeholder.com/512x512/151515/FFFFFF?text=No+Icon';
+
+					return (
+						<div
+							onClick={() => tileClicked(index)}
+							className="relative aspect-square h-[24em] shrink-0 overflow-visible bg-[#151515]"
+							key={game.id}
+						>
+							{/* Tile image */}
+							<img src={imageUrl} alt={game.title} className="w-full h-full object-cover" />
+							{/* Selected tile border */}
+							{snap.selectedTitle === index && (
+								<div className="animate-borderColor pointer-events-none absolute inset-[-.95em] rounded-[.2em] border-[.5em]"></div>
+							)}
+						</div>
+					);
+				})}
 			</div>
 		</div>
 	);
