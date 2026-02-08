@@ -41,7 +41,6 @@ impl GameScanner {
             let mut yuzu_paths = vec![
                 home_dir.join(".local/share/yuzu/load"),
                 home_dir.join("AppData/Roaming/yuzu/load"),
-                home_dir.join("AppData/Roaming/yuzu/nand/user/Contents/registered"),
                 home_dir.join("Library/Application Support/yuzu/load"),
                 // Additional common game storage locations
                 home_dir.join("Documents/Yuzu/games"),
@@ -49,7 +48,6 @@ impl GameScanner {
                 home_dir.join("Games/Yuzu"),
                 home_dir.join("Downloads"),
                 home_dir.join("Downloads/Switch"),
-                home_dir.join("Downloads"), // Scan Downloads folder for games
             ];
 
             // Add custom game directories from Yuzu config (including portable installs)
@@ -78,6 +76,31 @@ impl GameScanner {
             }
         }
         Ok(())
+    }
+
+    /// Clean up noisy filename tags like [0100...][v0]
+    fn clean_title(raw: &str) -> String {
+        let mut out = String::new();
+        let mut bracket_depth = 0;
+
+        for ch in raw.chars() {
+            match ch {
+                '[' => bracket_depth += 1,
+                ']' => {
+                    if bracket_depth > 0 {
+                        bracket_depth -= 1;
+                    }
+                }
+                _ => {
+                    if bracket_depth == 0 {
+                        out.push(ch);
+                    }
+                }
+            }
+        }
+
+        let out = out.replace('_', " ");
+        out.split_whitespace().collect::<Vec<_>>().join(" ")
     }
 
     /// Find possible Yuzu config paths (standard + portable installs)
@@ -238,7 +261,7 @@ impl GameScanner {
     /// Scan a directory for Switch game files
     fn scan_directory(&mut self, path: &Path, emulator: &str) -> Result<(), String> {
         // Look for .nsp, .xci, .nca, .nro files
-        let game_extensions = vec!["nsp", "xci", "nca", "nro"];
+        let game_extensions = vec!["nsp", "xci", "nro"];
 
         for entry in WalkDir::new(path)
             .max_depth(3)
@@ -255,7 +278,11 @@ impl GameScanner {
                         }
                         self.seen_paths.insert(path_str.clone());
 
-                        let title = file_name.to_string_lossy().to_string();
+                        let raw_title = file_name.to_string_lossy().to_string();
+                        let title = Self::clean_title(&raw_title);
+                        if title.is_empty() {
+                            continue;
+                        }
                         let id = format!("{:x}", md5::compute(path_str.as_bytes()));
 
                         // Try multiple icon strategies
@@ -400,37 +427,100 @@ impl GameScanner {
 }
 
 /// Launch a game with the specified emulator
-pub fn launch_game(game: &Game) -> Result<(), String> {
+pub fn launch_game_process(game: &Game) -> Result<std::process::Child, String> {
     use std::process::Command;
+    use std::path::PathBuf;
 
-    let emulator_cmd = match game.emulator.as_str() {
-        "yuzu" => {
-            // Try to find yuzu executable
-            if cfg!(target_os = "windows") {
-                "yuzu.exe"
-            } else if cfg!(target_os = "macos") {
-                "yuzu"
+    fn candidate_paths(file_name: &str) -> Vec<PathBuf> {
+        let mut paths = Vec::new();
+
+        if let Ok(env_path) = std::env::var("YUZU_PATH") {
+            let env_path = PathBuf::from(env_path);
+            if env_path.is_dir() {
+                paths.push(env_path.join(file_name));
             } else {
-                "yuzu"
+                paths.push(env_path);
             }
         }
-        "ryujinx" => {
-            // Try to find Ryujinx executable
-            if cfg!(target_os = "windows") {
-                "Ryujinx.exe"
-            } else if cfg!(target_os = "macos") {
-                "Ryujinx"
-            } else {
-                "Ryujinx"
+
+        if let Some(local_app_data) = dirs::data_local_dir() {
+            paths.push(local_app_data.join("yuzu").join(file_name));
+            paths.push(local_app_data.join("Programs").join("yuzu").join(file_name));
+        }
+
+        paths.push(PathBuf::from("C:/Program Files/yuzu").join(file_name));
+        paths.push(PathBuf::from("C:/Program Files (x86)/yuzu").join(file_name));
+
+        // Portable installs in Downloads (limited depth)
+        if let Some(home_dir) = dirs::home_dir() {
+            let downloads_dir = home_dir.join("Downloads");
+            if downloads_dir.exists() {
+                for entry in WalkDir::new(downloads_dir)
+                    .max_depth(5)
+                    .into_iter()
+                    .filter_map(|e| e.ok())
+                {
+                    if entry.file_type().is_file() {
+                        if let Some(name) = entry.file_name().to_str() {
+                            if name.eq_ignore_ascii_case(file_name)
+                                && entry
+                                    .path()
+                                    .to_string_lossy()
+                                    .to_ascii_lowercase()
+                                    .contains("yuzu")
+                            {
+                                paths.push(entry.path().to_path_buf());
+                            }
+                        }
+                    }
+                }
             }
         }
-        _ => return Err("Unknown emulator".to_string()),
-    };
 
-    let result = Command::new(emulator_cmd).arg(&game.path).spawn();
+        paths
+    }
+
+    fn resolve_emulator_cmd(emulator: &str) -> Result<PathBuf, String> {
+        if cfg!(target_os = "windows") {
+            let file_name = match emulator {
+                "yuzu" => "yuzu.exe",
+                "ryujinx" => "Ryujinx.exe",
+                _ => return Err("Unknown emulator".to_string()),
+            };
+
+            for path in candidate_paths(file_name) {
+                if path.exists() {
+                    return Ok(path);
+                }
+            }
+
+            // Fallback to PATH lookup
+            return Ok(PathBuf::from(file_name));
+        }
+
+        Ok(PathBuf::from(match emulator {
+            "yuzu" => "yuzu",
+            "ryujinx" => "Ryujinx",
+            _ => return Err("Unknown emulator".to_string()),
+        }))
+    }
+
+    let emulator_cmd = resolve_emulator_cmd(game.emulator.as_str())?;
+
+    let mut cmd = Command::new(&emulator_cmd);
+    if let Some(parent) = emulator_cmd.parent() {
+        cmd.current_dir(parent);
+    }
+    if game.emulator == "yuzu" {
+        cmd.arg("-f");
+        cmd.arg("-g");
+    }
+    cmd.arg(&game.path);
+
+    let result = cmd.spawn();
 
     match result {
-        Ok(_) => Ok(()),
+        Ok(child) => Ok(child),
         Err(e) => Err(format!("Failed to launch game: {}", e)),
     }
 }

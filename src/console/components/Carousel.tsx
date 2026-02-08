@@ -87,10 +87,15 @@ export function Carousel() {
 
 	const tileClicked = (index: number) => {
 		state.selectedTitle = index;
+		const game = state.games[index];
+		if (game && game.path) {
+			launchGame(game);
+		}
 	};
 
 	// Get the current list of games (only scanned games)
 	const games = snap.games;
+	const emptySlots = 5;
 
 	return (
 		// <div className="mt-[-0.2em] h-[27em] overflow-hidden px-[10em]" ref={emblaRef}>
@@ -121,6 +126,12 @@ export function Carousel() {
 						</div>
 					);
 				})}
+				{Array.from({ length: emptySlots }).map((_, idx) => (
+					<div
+						key={`empty-${idx}`}
+						className="relative aspect-square h-[24em] shrink-0 overflow-visible bg-[#151515] opacity-40"
+					/>
+				))}
 			</div>
 		</div>
 	);

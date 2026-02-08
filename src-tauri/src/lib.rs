@@ -2,10 +2,11 @@ use std::sync::Mutex;
 use tauri::State;
 
 mod games;
-use games::{launch_game, Game, GameScanner};
+use games::{Game, GameScanner};
 
 struct AppState {
     scanner: Mutex<GameScanner>,
+    running_game: Mutex<Option<std::process::Child>>,
 }
 
 #[tauri::command]
@@ -40,8 +41,26 @@ fn add_game(
 }
 
 #[tauri::command]
-fn launch_game_cmd(game: Game) -> Result<(), String> {
-    launch_game(&game)
+fn launch_game_cmd(state: State<AppState>, game: Game) -> Result<(), String> {
+    let mut running = state.running_game.lock().map_err(|e| e.to_string())?;
+
+    if let Some(child) = running.as_mut() {
+        match child.try_wait() {
+            Ok(Some(_status)) => {
+                *running = None;
+            }
+            Ok(None) => {
+                return Err("Game already running".to_string());
+            }
+            Err(e) => {
+                return Err(format!("Failed to check running game: {}", e));
+            }
+        }
+    }
+
+    let child = games::launch_game_process(&game)?;
+    *running = Some(child);
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -59,6 +78,7 @@ pub fn run() {
         })
         .manage(AppState {
             scanner: Mutex::new(GameScanner::new()),
+            running_game: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             scan_games,

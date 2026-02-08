@@ -65,6 +65,10 @@ export async function launchGame(game: Game): Promise<void> {
 	try {
 		await invoke('launch_game_cmd', { game });
 	} catch (err) {
+		const message = String(err ?? '');
+		if (message.includes('Game already running')) {
+			return;
+		}
 		console.error('Failed to launch game:', err);
 		alert(`Failed to launch game: ${err}`);
 	}
