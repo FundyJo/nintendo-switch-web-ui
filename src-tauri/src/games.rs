@@ -33,6 +33,11 @@ impl GameScanner {
                 home_dir.join(".local/share/yuzu/load"),
                 home_dir.join("AppData/Roaming/yuzu/load"),
                 home_dir.join("Library/Application Support/yuzu/load"),
+                // Additional common game storage locations
+                home_dir.join("Documents/Yuzu/games"),
+                home_dir.join("Games/Switch"),
+                home_dir.join("Games/Yuzu"),
+                home_dir.join("Downloads/Switch"),
             ];
 
             for yuzu_path in yuzu_paths {

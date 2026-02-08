@@ -17,7 +17,7 @@ import profile2 from '/profile2.jpeg';
 import profile3 from '/profile3.jpeg';
 import wifi from '/wifi.svg';
 
-import state, { scanGames, defaultGames, launchGame } from '../state-tauri';
+import state, { scanGames, launchGame } from '../state-tauri';
 import Carousel from './components/Carousel';
 import useDimensions from './useDimensions';
 import useLiveTime from './useLiveTime';
@@ -38,17 +38,13 @@ function Console() {
 
 	// Load games on mount
 	useEffect(() => {
-		// Try to scan for games, fallback to default games if none found
-		scanGames().then(() => {
-			if (snap.games.length === 0) {
-				state.games = defaultGames;
-			}
-		});
+		// Scan for games from emulators only
+		scanGames();
 	}, []);
 
-	// Get the current list of games (or default ones)
-	const games = snap.games.length > 0 ? snap.games : defaultGames;
-	const currentGame = snap.selectedTitle !== null ? games[snap.selectedTitle] : null;
+	// Get the current list of games (only scanned games, no defaults)
+	const games = snap.games;
+	const currentGame = snap.selectedTitle !== null && snap.selectedTitle < games.length ? games[snap.selectedTitle] : null;
 
 	// Handle game launch when 'A' button is pressed or clicked
 	const handleLaunchGame = () => {
