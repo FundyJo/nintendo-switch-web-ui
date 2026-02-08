@@ -49,6 +49,7 @@ impl GameScanner {
                 home_dir.join("Games/Yuzu"),
                 home_dir.join("Downloads"),
                 home_dir.join("Downloads/Switch"),
+                home_dir.join("Downloads"), // Scan Downloads folder for games
             ];
 
             // Add custom game directories from Yuzu config (including portable installs)
