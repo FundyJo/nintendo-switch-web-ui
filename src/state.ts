@@ -1,14 +1,25 @@
 import { proxy } from 'valtio';
 
+export interface GameTile {
+	img: string;
+	title: string;
+	romPath?: string;
+	titleId?: string | null;
+}
+
 const state = proxy({
 	selectedTitle: null as null | number,
+	tiles: [] as GameTile[],
+	emulatorPath: '',
 });
 
 export default state;
 
 const IMAGE_RES = 512;
 const IMAGE_RES_STR = `${IMAGE_RES}/${IMAGE_RES}`;
-export const tiles = [
+
+// Default games for web version or fallback
+export const defaultTiles: GameTile[] = [
 	{ img: `https://tinfoil.media/ti/01007EF00011E000/${IMAGE_RES_STR}`, title: 'The Legend of Zelda: Breath of the Wild' },
 	{ img: `https://tinfoil.media/ti/01006A800016E000/${IMAGE_RES_STR}`, title: 'Super Smash Bros. Ultimate' },
 	{ img: `https://tinfoil.media/ti/0100000000010000/${IMAGE_RES_STR}`, title: 'Super Mario Odyssey' },
@@ -27,3 +38,6 @@ export const tiles = [
 	{ img: `https://tinfoil.media/ti/01008C0016544000/${IMAGE_RES_STR}`, title: 'Sea of Stars' },
 	{ img: `https://tinfoil.media/ti/010049900F546000/${IMAGE_RES_STR}`, title: 'Super Mario 3D All-Stars' },
 ];
+
+// Initialize with default tiles
+state.tiles = defaultTiles;

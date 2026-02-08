@@ -4,7 +4,8 @@ import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
 import { useEffect } from 'react';
 import { useSnapshot } from 'valtio';
 
-import state, { tiles } from '../../state';
+import state from '../../state';
+import { handleLaunchGame } from '../../useGames';
 
 const removeExcessiveScroll = (emblaApi: EmblaCarouselType) => {
 	emblaApi.on('scroll', (emblaApi) => {
@@ -72,13 +73,25 @@ export function Carousel() {
 		state.selectedTitle = index;
 	};
 
+	const handleKeyDown = (event: KeyboardEvent) => {
+		if (event.key === 'Enter' && snap.selectedTitle !== null) {
+			handleLaunchGame(snap.selectedTitle);
+		}
+	};
+
+	useEffect(() => {
+		document.addEventListener('keydown', handleKeyDown);
+		return () => document.removeEventListener('keydown', handleKeyDown);
+	}, [snap.selectedTitle]);
+
 	return (
 		// <div className="mt-[-0.2em] h-[27em] overflow-hidden px-[10em]" ref={emblaRef}>
 		<div className=" left-0 z-10 mt-[-0.2em] h-[27em] w-screen px-[10em] " ref={emblaRef}>
 			<div className="flex size-full items-center gap-[1.3em]">
-				{tiles.map((tile, index) => (
+				{snap.tiles.map((tile, index) => (
 					<div
 						onClick={() => tileClicked(index)}
+						onDoubleClick={() => handleLaunchGame(index)}
 						className="relative aspect-square h-[24em] shrink-0 overflow-visible bg-[#151515]"
 						key={tile.img}
 					>
