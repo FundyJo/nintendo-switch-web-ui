@@ -55,9 +55,11 @@ const keyboardControl = (emblaApi: EmblaCarouselType) => {
 			// Launch game on Enter or Space
 			if (state.selectedTitle !== null) {
 				const games = state.games;
-				const game = games[state.selectedTitle];
-				if (game && game.path) {
-					launchGame(game);
+				if (state.selectedTitle < games.length) {
+					const game = games[state.selectedTitle];
+					if (game && game.path) {
+						launchGame(game);
+					}
 				}
 			}
 		}
