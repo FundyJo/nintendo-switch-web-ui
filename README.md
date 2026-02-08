@@ -102,7 +102,7 @@ The app automatically scans these directories:
   - `~/Games/Switch`
   - `~/Games/Yuzu`
   - `~/Downloads/Switch`
-  - `~/Downloads` (for games stored directly in Downloads folder)
+  - `~/Downloads`
 
 Place your `.nsp`, `.xci`, `.nca`, or `.nro` game files in these directories for automatic detection.
 
